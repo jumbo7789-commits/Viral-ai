@@ -65,7 +65,17 @@ def render_voiceover(video, narration, output="output/short_with_voiceover.mp4",
         raise FileNotFoundError("Video and narration audio files must both exist.")
     target.parent.mkdir(parents=True, exist_ok=True)
     command = [ffmpeg, "-y", "-i", str(video), "-i", str(narration)]
-    filters = "[0:a]volume=" + str(max(0.0, min(1.0, float(original_volume)))) + "[bg];[1:a]volume=1.0[vo];[bg][vo]amix=inputs=2:duration=first:dropout_transition=2[aout]"
+    probe = shutil.which("ffprobe")
+    has_audio = False
+    if probe:
+        check = subprocess.run([probe, "-v", "error", "-select_streams", "a:0",
+                                "-show_entries", "stream=index", "-of", "csv=p=0", str(video)],
+                               capture_output=True, text=True)
+        has_audio = bool(check.stdout.strip())
+    if has_audio:
+        filters = "[0:a]volume=" + str(max(0.0, min(1.0, float(original_volume)))) + "[bg];[1:a]volume=1.0[vo];[bg][vo]amix=inputs=2:duration=first:dropout_transition=2[aout]"
+    else:
+        filters = "[1:a]anull[aout]"
     if burn_captions:
         if not captions or not Path(captions).is_file():
             raise ValueError("A valid SRT file is required to burn captions.")
