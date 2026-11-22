@@ -7,3 +7,6 @@ This is a starter scaffold, not a fully autonomous viral-video system. It does n
 
 ## Setup
 See SETUP.md. Requires Python 3.11+, FFmpeg, and optional Google OAuth credentials for uploading. Uploads default to private. Never commit API keys, OAuth credentials, or tokens.
+
+## Complete Short production
+See [Complete Short pipeline](docs/COMPLETE_SHORT_PIPELINE.md) for the GitHub Actions workflow that builds a vertical Short with a heuristic highlight, narration, burned captions and metadata from a direct HTTPS video URL you own or are licensed to use.
