@@ -11,7 +11,7 @@ import wave
 from array import array
 from pathlib import Path
 
-SCENE_RE = re.compile(r"pts_time:([0-9]+(?:\\.[0-9]+)?)")
+SCENE_RE = re.compile(r"pts_time:([0-9]+(?:\.[0-9]+)?)")
 
 def _run(command):
     return subprocess.run(command, check=True, capture_output=True, text=True)
