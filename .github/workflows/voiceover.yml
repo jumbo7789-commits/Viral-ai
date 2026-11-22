@@ -1,0 +1,61 @@
+name: Generate ViralCut voiceover and captions
+
+on:
+  workflow_dispatch:
+    inputs:
+      narration_text:
+        description: "Narration script (keep it concise for a Short)"
+        required: true
+        type: string
+      voice:
+        description: "Edge TTS voice"
+        required: true
+        default: "en-GB-RyanNeural"
+        type: string
+      rate:
+        description: "Speaking rate, for example +8%"
+        required: true
+        default: "+8%"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install optional voice tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          pip install -r requirements.txt -r requirements-voice.txt
+      - name: Generate narration and captions
+        env:
+          NARRATION_TEXT: ${{ inputs.narration_text }}
+          VOICE_NAME: ${{ inputs.voice }}
+          SPEAKING_RATE: ${{ inputs.rate }}
+        run: |
+          python - <<'PY'
+          import os
+          from editing.voiceover import generate_voiceover, create_srt
+          text = os.environ["NARRATION_TEXT"]
+          audio = generate_voiceover(text, "output/voiceover.mp3",
+                                     os.environ["VOICE_NAME"],
+                                     os.environ["SPEAKING_RATE"])
+          captions = create_srt(audio, "output/captions.srt", "tiny")
+          print(f"Created {audio} and {captions}")
+          PY
+      - name: Upload generated files
+        uses: actions/upload-artifact@v4
+        with:
+          name: viralcut-voiceover-captions
+          path: |
+            output/voiceover.mp3
+            output/captions.srt
+          retention-days: 7
