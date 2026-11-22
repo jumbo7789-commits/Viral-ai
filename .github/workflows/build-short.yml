@@ -1,0 +1,115 @@
+name: Build a complete ViralCut Short
+
+on:
+  workflow_dispatch:
+    inputs:
+      gameplay_video_url:
+        description: "Direct HTTPS download URL for gameplay footage you own or are licensed to use"
+        required: true
+        type: string
+      rights_confirmed:
+        description: "Confirm you own this footage or have permission to use it"
+        required: true
+        type: choice
+        options:
+          - "no"
+          - "yes"
+      narration_text:
+        description: "Narration script for the Short"
+        required: true
+        type: string
+      video_hook:
+        description: "Truthful opening hook/title"
+        required: true
+        type: string
+      duration:
+        description: "Highlight length in seconds (5–60)"
+        required: true
+        default: "30"
+        type: string
+      voice:
+        description: "English voice"
+        required: true
+        default: "en-GB-RyanNeural"
+        type: string
+      rate:
+        description: "Speaking rate, e.g. +8%"
+        required: true
+        default: "+8%"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-short:
+    if: ${{ inputs.rights_confirmed == 'yes' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install FFmpeg and Python dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          pip install -r requirements.txt -r requirements-voice.txt
+      - name: Download permitted gameplay footage
+        env:
+          VIDEO_URL: ${{ inputs.gameplay_video_url }}
+        run: |
+          python - <<'PY'
+          import os
+          from urllib.parse import urlparse
+          import urllib.request
+          url = os.environ["VIDEO_URL"].strip()
+          parsed = urlparse(url)
+          if parsed.scheme != "https" or not parsed.hostname:
+              raise SystemExit("Only a valid HTTPS direct-download URL is accepted.")
+          request = urllib.request.Request(url, headers={"User-Agent": "ViralCutAI/1.0"})
+          with urllib.request.urlopen(request, timeout=60) as response:
+              length = response.headers.get("Content-Length")
+              if length and int(length) > 1_000_000_000:
+                  raise SystemExit("Video is larger than the 1 GB workflow limit.")
+              content_type = response.headers.get("Content-Type", "")
+              if not (content_type.startswith("video/") or url.lower().split("?")[0].endswith((".mp4", ".mov", ".mkv", ".webm"))):
+                  raise SystemExit("URL did not return a recognised video file.")
+              total = 0
+              with open("gameplay_input", "wb") as output:
+                  while True:
+                      chunk = response.read(1024 * 1024)
+                      if not chunk:
+                          break
+                      total += len(chunk)
+                      if total > 1_000_000_000:
+                          raise SystemExit("Video exceeded the 1 GB workflow limit.")
+                      output.write(chunk)
+          PY
+      - name: Build vertical video, narration, captions and metadata
+        env:
+          NARRATION_TEXT: ${{ inputs.narration_text }}
+          VIDEO_HOOK: ${{ inputs.video_hook }}
+          VIDEO_DURATION: ${{ inputs.duration }}
+          VOICE_NAME: ${{ inputs.voice }}
+          SPEAKING_RATE: ${{ inputs.rate }}
+        run: |
+          python - <<'PY'
+          import os
+          from viralcut_pipeline import build
+          duration = float(os.environ["VIDEO_DURATION"])
+          if not 5 <= duration <= 60:
+              raise SystemExit("Duration must be between 5 and 60 seconds.")
+          result = build("gameplay_input", os.environ["NARRATION_TEXT"],
+                         "GTA 6 gameplay", os.environ["VIDEO_HOOK"],
+                         duration=duration, voice=os.environ["VOICE_NAME"],
+                         rate=os.environ["SPEAKING_RATE"])
+          print(result)
+          PY
+      - name: Upload completed Short and supporting files
+        uses: actions/upload-artifact@v4
+        with:
+          name: viralcut-complete-short
+          path: output/final/
+          retention-days: 7
