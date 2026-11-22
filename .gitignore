@@ -1,0 +1,13 @@
+.env
+client_secret*.json
+token*.json
+credentials.json
+*.mp4
+*.mov
+*.mkv
+*.wav
+*.mp3
+output/*
+!output/.gitkeep
+__pycache__/
+.venv/
